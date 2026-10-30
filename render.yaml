@@ -1,13 +1,15 @@
 services:
   - type: web
     name: requirements-frontend
-    runtime: docker
+    runtime: node
     plan: free
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    buildCommand: npm install && npm run build
+    startCommand: node .output/server/index.mjs
     envVars:
       - key: NODE_ENV
         value: production
       - key: NUXT_PUBLIC_API_BASE
-        sync: false  # 需要手动设置后端API地址
+        sync: false  # 在 Render Dashboard 手动设置后端API地址
+      - key: NODE_VERSION
+        value: "20.18.0"
     healthCheckPath: /
