@@ -3,7 +3,7 @@ services:
     name: requirements-frontend
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build
+    buildCommand: npx nuxt build
     startCommand: node .output/server/index.mjs
     envVars:
       - key: NODE_ENV
