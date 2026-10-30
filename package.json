@@ -6,6 +6,8 @@
     "dev": "nuxt dev",
     "dev:real": "NUXT_BACKEND_PROXY_TARGET=http://localhost:8000 nuxt dev",
     "build": "nuxt build",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
