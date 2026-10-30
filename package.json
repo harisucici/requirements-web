@@ -1,0 +1,21 @@
+{
+  "name": "request-management-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "dev:real": "NUXT_BACKEND_PROXY_TARGET=http://localhost:8000 nuxt dev",
+    "build": "nuxt build",
+    "typecheck": "nuxt typecheck"
+  },
+  "dependencies": {
+    "@nuxtjs/tailwindcss": "^6.12.1",
+    "nuxt": "^3.13.2",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "typescript": "^5.6.0",
+    "vue-tsc": "^3.3.11"
+  }
+}

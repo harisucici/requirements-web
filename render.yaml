@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: requirements-frontend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NUXT_PUBLIC_API_BASE
+        sync: false  # 需要手动设置后端API地址
+    healthCheckPath: /

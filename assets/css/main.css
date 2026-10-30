@@ -1,0 +1,827 @@
+/* =========================================================
+ * MECHPUNK WASTELAND — INDUSTRIAL CONTROL SYSTEM
+ * -----------------------------------------------
+ * Primary palette:
+ *   --iron        #1a1a1a   deep iron grey (background)
+ *   --rust        #ff8c00   rust orange / warning lamp
+ *   --copper      #4a6b7c   oxidised copper green
+ *   --silver      #e0e0e0   brushed metal text
+ *   --blood       #b91c1c   emergency red
+ *   --amber       #fbbf24   secondary warning
+ * ========================================================= */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------- Fonts ---------- */
+:root {
+  /* Core palette */
+  --iron: #1a1a1a;
+  --iron-deep: #101214;
+  --iron-plate: #252525;
+  --rust: #ff8c00;
+  --rust-dim: #c46a00;
+  --rust-glow: rgba(255, 140, 0, 0.55);
+  --copper: #4a6b7c;
+  --copper-glow: rgba(74, 107, 124, 0.55);
+  --silver: #e0e0e0;
+  --silver-dim: #9a9a9a;
+  --blood: #b91c1c;
+  --amber: #fbbf24;
+  --success: #10b981;
+
+  /* Semantic */
+  --bg: var(--iron);
+  --panel: rgba(37, 37, 37, 0.72);
+  --line: rgba(224, 224, 224, 0.14);
+  --line-strong: rgba(255, 140, 0, 0.45);
+
+  /* Status palette (PRD §7.1) recolored for mechpunk */
+  --status-pending: #94a3b8;
+  --status-approved: #38bdf8;
+  --status-rejected: var(--blood);
+  --status-needs-clarification: var(--amber);
+  --status-paid: var(--success);
+  --status-in-progress: var(--rust);
+  --status-completed: #22c55e;
+  --status-canceled: #6b7280;
+  --status-price-adjusted: #a855f7;
+
+  /* Admin shell */
+  --admin-bg: var(--iron-deep);
+  --admin-sidebar: #0c0e10;
+  --admin-line: rgba(255, 140, 0, 0.18);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--iron);
+  color: var(--silver);
+  font-family: 'Rajdhani', 'Share Tech Mono', system-ui, sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, .display, .hud-title {
+  font-family: 'Orbitron', 'Rajdhani', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rust);
+  text-shadow:
+    0 0 8px rgba(255, 140, 0, 0.45),
+    0 0 2px rgba(255, 140, 0, 0.25);
+}
+
+code, pre, .mono, .telemetry {
+  font-family: 'Share Tech Mono', ui-monospace, monospace;
+  letter-spacing: 0;
+  color: var(--silver);
+}
+
+button, input, textarea, select { font: inherit; color: inherit; }
+
+button:focus-visible, a:focus-visible, input:focus-visible,
+textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--rust);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(255, 140, 0, 0.25);
+}
+
+/* =========================================================
+ * GLOBAL AMBIENT LAYER
+ * --------------------------------------------------------
+ * Scan line (slow top→bottom sweep) + grid vignette
+ * ========================================================= */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background-image:
+    linear-gradient(rgba(255, 140, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74, 107, 124, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 85%);
+}
+body::after {
+  content: '';
+  position: fixed;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--rust) 20%,
+    rgba(255, 140, 0, 0.9) 50%,
+    var(--rust) 80%,
+    transparent 100%);
+  box-shadow: 0 0 18px var(--rust-glow), 0 0 2px #fff;
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 2;
+  animation: scanline-sweep 9s linear infinite;
+}
+@keyframes scanline-sweep {
+  0%   { top: -4%; }
+  100% { top: 104%; }
+}
+
+/* Random glitch flicker on the whole page */
+.page-glitch {
+  position: relative;
+}
+@keyframes glitch-flicker {
+  0%, 92%, 100% { opacity: 1; filter: none; }
+  93% { opacity: 0.78; filter: hue-rotate(-8deg); }
+  94% { opacity: 0.92; filter: hue-rotate(10deg) blur(0.4px); }
+  95% { opacity: 0.6;  filter: hue-rotate(-15deg); }
+  96% { opacity: 1;    filter: none; }
+}
+body { animation: glitch-flicker 11s infinite; }
+
+/* =========================================================
+ * HUD PANELS — industrial bezels
+ * ========================================================= */
+.panel, .hud-panel {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(37, 37, 37, 0.92), rgba(22, 22, 22, 0.85));
+  border: 1px solid var(--line);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02),
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 12px 40px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+}
+.panel::before, .hud-panel::before {
+  /* corner brackets */
+  content: '';
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--rust), var(--rust)) left top / 14px 1px no-repeat,
+    linear-gradient(var(--rust), var(--rust)) left top / 1px 14px no-repeat,
+    linear-gradient(var(--rust), var(--rust)) right top / 14px 1px no-repeat,
+    linear-gradient(var(--rust), var(--rust)) right top / 1px 14px no-repeat,
+    linear-gradient(var(--rust), var(--rust)) left bottom / 14px 1px no-repeat,
+    linear-gradient(var(--rust), var(--rust)) left bottom / 1px 14px no-repeat,
+    linear-gradient(var(--rust), var(--rust)) right bottom / 14px 1px no-repeat,
+    linear-gradient(var(--rust), var(--rust)) right bottom / 1px 14px no-repeat;
+}
+.panel::after, .hud-panel::after {
+  /* border-scanning highlight */
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgba(255, 140, 0, 0.4) 50%,
+    transparent 65%
+  );
+  background-size: 300% 100%;
+  background-position: 100% 0;
+  animation: panel-scan 6s linear infinite;
+  mix-blend-mode: screen;
+  opacity: 0.55;
+}
+@keyframes panel-scan {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* Eyebrow tag — small uppercase label */
+.eyebrow {
+  color: var(--rust);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.eyebrow::before {
+  content: '▸ ';
+  color: var(--copper);
+}
+
+/* =========================================================
+ * STATUS INDICATOR LAMPS
+ * ========================================================= */
+.status-led {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--rust);
+  box-shadow:
+    0 0 8px var(--rust-glow),
+    0 0 2px #fff inset;
+  animation: led-pulse 2.2s ease-in-out infinite;
+}
+.status-led.ok    { background: var(--success); box-shadow: 0 0 8px rgba(16,185,129,.6), 0 0 2px #fff inset; }
+.status-led.warn  { background: var(--amber);   box-shadow: 0 0 8px rgba(251,191,36,.6), 0 0 2px #fff inset; }
+.status-led.err   { background: var(--blood);   box-shadow: 0 0 8px rgba(185,28,28,.65), 0 0 2px #fff inset; animation: led-pulse-fast 0.9s ease-in-out infinite; }
+.status-led.idle  { background: var(--copper);  box-shadow: 0 0 6px var(--copper-glow); animation: none; }
+
+@keyframes led-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+@keyframes led-pulse-fast {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.25; }
+}
+
+/* =========================================================
+ * DATA STREAM — scrolling telemetry column
+ * ========================================================= */
+.datastream {
+  position: relative;
+  overflow: hidden;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--copper);
+}
+.datastream::before {
+  content: '01001 10110 00101 11010 00011 10101\A\
+01110 10010 00110 11001 01010 10100\A\
+00011 11100 01010 10011 01101 10010\A\
+01101 10100 00110 11011 01000 10101\A\
+01010 11001 10011 00101 10110 01100';
+  white-space: pre;
+  position: absolute;
+  inset: -100% 0;
+  animation: data-fall 18s linear infinite;
+  opacity: 0.28;
+  pointer-events: none;
+}
+@keyframes data-fall {
+  0%   { transform: translateY(-50%); }
+  100% { transform: translateY(0%); }
+}
+
+/* =========================================================
+ * BUTTONS — industrial switches
+ * ========================================================= */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.7rem 1.4rem;
+  cursor: pointer;
+  text-decoration: none;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(74,107,124,.18), rgba(26,26,26,.6));
+  color: var(--silver);
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  transition: background .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.btn:hover:not(:disabled) {
+  border-color: var(--rust);
+  color: #fff;
+  box-shadow: 0 0 16px rgba(255,140,0,.35), inset 0 0 12px rgba(255,140,0,.15);
+}
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.btn-primary {
+  background: linear-gradient(180deg, #ff9a1f, #c46a00);
+  color: #101214;
+  border-color: #ffb347;
+  text-shadow: 0 1px 0 rgba(255,255,255,.25);
+}
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 0 24px var(--rust-glow), inset 0 0 14px rgba(255,255,255,.25);
+  color: #0c0e10;
+}
+
+.btn-accent {
+  background: linear-gradient(180deg, var(--copper), #2d4450);
+  color: #e8f1f5;
+  border-color: #6a8ea1;
+}
+.btn-accent:hover:not(:disabled) {
+  border-color: #9ac;
+  box-shadow: 0 0 18px var(--copper-glow);
+}
+
+.btn-secondary {
+  background: transparent;
+  border-color: var(--line-strong);
+  color: var(--silver);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: rgba(255,140,0,.08);
+  color: #fff;
+}
+
+.btn-danger {
+  background: transparent;
+  border-color: var(--blood);
+  color: #fca5a5;
+}
+.btn-danger:hover:not(:disabled) {
+  background: rgba(185,28,28,.18);
+  box-shadow: 0 0 18px rgba(185,28,28,.45);
+  color: #fff;
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--silver-dim);
+}
+.btn-ghost:hover:not(:disabled) {
+  color: var(--rust);
+  text-decoration: underline;
+}
+
+.btn-sm { padding: 0.4rem 0.95rem; font-size: 0.82rem; }
+
+/* =========================================================
+ * FORM CONTROLS
+ * ========================================================= */
+.field {
+  width: 100%;
+  background: rgba(10, 12, 14, 0.85);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--copper);
+  padding: 0.7rem 0.95rem;
+  color: var(--silver);
+  font-family: 'Share Tech Mono', monospace;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.field::placeholder { color: #6a7075; }
+.field:focus {
+  border-color: var(--rust);
+  border-left-color: var(--rust);
+  box-shadow: 0 0 0 2px rgba(255,140,0,.18), inset 0 0 12px rgba(255,140,0,.08);
+  outline: none;
+}
+.field[aria-invalid="true"] {
+  border-color: var(--blood);
+  border-left-color: var(--blood);
+  box-shadow: 0 0 0 2px rgba(185,28,28,.2);
+}
+.label {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  color: var(--silver-dim);
+  display: block;
+}
+.help { font-size: 0.82rem; color: var(--silver-dim); }
+.error-text {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #fca5a5;
+  font-family: 'Share Tech Mono', monospace;
+}
+.error-text::before { content: '⚠ ERR: '; color: var(--blood); }
+
+/* =========================================================
+ * ADMIN SHELL — industrial control console
+ * ========================================================= */
+.admin-shell {
+  background:
+    radial-gradient(ellipse at top, rgba(74,107,124,.15), transparent 60%),
+    var(--admin-bg);
+  min-height: 100vh;
+  color: var(--silver);
+  position: relative;
+}
+.admin-shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255,140,0,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74,107,124,.045) 1px, transparent 1px);
+  background-size: 40px 40px;
+  z-index: 0;
+}
+.admin-shell > * { position: relative; z-index: 1; }
+
+.admin-panel {
+  background: linear-gradient(180deg, rgba(37,37,37,.92), rgba(22,22,22,.85));
+  color: var(--silver);
+  border: 1px solid var(--admin-line);
+}
+
+.admin-sidebar {
+  background:
+    linear-gradient(180deg, rgba(12,14,16,.98), rgba(12,14,16,.92));
+  border-right: 1px solid var(--admin-line);
+  box-shadow: inset -1px 0 0 rgba(255,140,0,.18);
+}
+
+.admin-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.8rem;
+  border-left: 2px solid transparent;
+  color: rgba(224, 224, 224, 0.55);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.92rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: all .15s ease;
+  text-decoration: none;
+}
+.admin-sidebar-link:hover {
+  background: rgba(255,140,0,.06);
+  color: #fff;
+  border-left-color: var(--copper);
+}
+.admin-sidebar-link.router-link-active {
+  background: linear-gradient(90deg, rgba(255,140,0,.18), transparent);
+  color: var(--rust);
+  border-left-color: var(--rust);
+  text-shadow: 0 0 8px rgba(255,140,0,.4);
+}
+
+/* =========================================================
+ * PAGE GRID — asymmetric cockpit grid
+ * ========================================================= */
+.page-grid {
+  background-color: var(--iron);
+  background-image:
+    linear-gradient(rgba(255,140,0,.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74,107,124,.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* =========================================================
+ * SKELETON
+ * ========================================================= */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(74,107,124,.18);
+  border: 1px solid var(--line);
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(255,140,0,.35),
+    transparent);
+  animation: skeleton-sweep 1.6s infinite;
+}
+@keyframes skeleton-sweep {
+  100% { transform: translateX(100%); }
+}
+
+/* =========================================================
+ * KANBAN
+ * ========================================================= */
+.drag-over {
+  outline: 2px dashed var(--rust);
+  outline-offset: -4px;
+  background: rgba(255,140,0,.08);
+}
+.dragging { opacity: .45; filter: grayscale(.4); }
+
+/* =========================================================
+ * TOAST
+ * ========================================================= */
+.toast-enter-active, .toast-leave-active {
+  transition: transform .25s ease, opacity .25s ease;
+}
+.toast-enter-from, .toast-leave-to {
+  transform: translateX(24px);
+  opacity: 0;
+}
+
+/* =========================================================
+ * UTILITIES
+ * ========================================================= */
+.mech-title {
+  font-family: 'Orbitron', sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rust);
+  text-shadow: 0 0 10px rgba(255,140,0,.45);
+}
+.mech-border {
+  border: 1px solid var(--line);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.02),
+    0 0 0 1px rgba(0,0,0,.5);
+}
+.mech-divider {
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    var(--rust) 20%,
+    var(--rust) 80%,
+    transparent);
+  opacity: .45;
+}
+.mech-rivet::before,
+.mech-rivet::after {
+  content: '';
+  position: absolute;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #6a6a6a, #1a1a1a 70%);
+  box-shadow: inset 0 0 2px rgba(0,0,0,.8);
+}
+.mech-rivet::before { top: 6px; left: 6px; }
+.mech-rivet::after  { top: 6px; right: 6px; }
+
+/* =========================================================
+ * REDUCED MOTION
+ * ========================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  .skeleton::after, body::after { display: none; }
+}
+
+/* =========================================================
+ * MECHANICAL PUNK PAGE CLASSES
+ * ========================================================= */
+.page-container {
+  position: relative;
+  min-height: 100vh;
+  background: var(--iron);
+  overflow: hidden;
+}
+
+.mechanical-bg {
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(rgba(255,140,0,.03) 2px, transparent 2px),
+    linear-gradient(90deg, rgba(74,107,124,.04) 2px, transparent 2px),
+    linear-gradient(135deg, var(--iron-deep) 0%, var(--iron) 100%);
+  background-size: 48px 48px, 48px 48px, 100% 100%;
+  opacity: .6;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.scanline {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--rust-glow), transparent);
+  animation: scanline-sweep 9s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.page-content {
+  position: relative;
+  z-index: 2;
+  padding: 2rem 1rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.5rem 2rem;
+  background: linear-gradient(135deg, rgba(37,37,37,.95), rgba(22,22,22,.85));
+  border: 1px solid var(--line-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.05),
+    0 0 20px rgba(255,140,0,.15);
+  position: relative;
+}
+
+.mechanical-enter {
+  animation: mechanical-enter .6s cubic-bezier(.23, 1, .32, 1) both;
+}
+
+@keyframes mechanical-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(.95);
+    filter: blur(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.corner-bracket {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--rust);
+  box-shadow: 0 0 8px rgba(255,140,0,.4);
+}
+.corner-bracket.tl { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+.corner-bracket.tr { top: -1px; right: -1px; border-left: none; border-bottom: none; }
+.corner-bracket.bl { bottom: -1px; left: -1px; border-right: none; border-top: none; }
+.corner-bracket.br { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+
+.glitch-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--rust);
+  text-shadow:
+    0 0 10px rgba(255,140,0,.6),
+    0 0 20px rgba(255,140,0,.4);
+  position: relative;
+  animation: glitch-text 3s infinite;
+}
+
+@keyframes glitch-text {
+  0%, 90%, 100% {
+    text-shadow:
+      0 0 10px rgba(255,140,0,.6),
+      0 0 20px rgba(255,140,0,.4);
+  }
+  92% {
+    text-shadow:
+      -2px 0 rgba(255,140,0,.8),
+      2px 0 rgba(74,107,124,.6);
+  }
+  94% {
+    text-shadow:
+      2px 0 rgba(255,140,0,.8),
+      -2px 0 rgba(74,107,124,.6);
+  }
+}
+
+.data-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--copper);
+  text-shadow: 0 0 8px var(--copper-glow);
+}
+
+.data-value {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--silver);
+  text-shadow: 0 0 10px rgba(224,224,224,.3);
+}
+
+.btn-mechanical {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .6rem 1.2rem;
+  background: linear-gradient(135deg, rgba(255,140,0,.15), rgba(255,140,0,.05));
+  border: 1px solid var(--line-strong);
+  color: var(--rust);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: .9rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all .2s ease;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.1),
+    0 0 10px rgba(255,140,0,.2);
+}
+.btn-mechanical:hover {
+  background: linear-gradient(135deg, rgba(255,140,0,.25), rgba(255,140,0,.1));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.15),
+    0 0 15px rgba(255,140,0,.4);
+  text-shadow: 0 0 8px rgba(255,140,0,.6);
+}
+
+.link-mechanical {
+  color: var(--rust);
+  text-decoration: none;
+  font-weight: 600;
+  transition: all .2s ease;
+  border-bottom: 1px solid transparent;
+}
+.link-mechanical:hover {
+  color: var(--amber);
+  border-bottom-color: var(--amber);
+  text-shadow: 0 0 8px rgba(255,140,0,.5);
+}
+
+.alert-mechanical {
+  border-left: 3px solid;
+  padding: .75rem 1rem;
+  background: rgba(0,0,0,.3);
+}
+.alert-mechanical.danger { border-left-color: var(--blood); }
+.alert-mechanical.warning { border-left-color: var(--amber); }
+.alert-mechanical.success { border-left-color: var(--success); }
+
+.status-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  position: relative;
+}
+.status-indicator.success {
+  background: var(--success);
+  box-shadow: 0 0 8px rgba(16,185,129,.6);
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+.status-indicator.warning {
+  background: var(--amber);
+  box-shadow: 0 0 8px rgba(251,191,36,.6);
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+.status-indicator.danger {
+  background: var(--blood);
+  box-shadow: 0 0 8px rgba(185,28,28,.6);
+  animation: pulse-glow 1s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .6; transform: scale(1.1); }
+}
+
+.screw {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #6a6a6a, #1a1a1a 70%);
+  box-shadow:
+    inset 0 0 2px rgba(0,0,0,.8),
+    0 0 1px rgba(0,0,0,.5);
+  z-index: 3;
+}
+.screw::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 1px;
+  background: #333;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.screw-tl { top: 8px; left: 8px; }
+.screw-tr { top: 8px; right: 8px; }
+.screw-bl { bottom: 8px; left: 8px; }
+.screw-br { bottom: 8px; right: 8px; }
+
+.mechanical-fade-in {
+  animation: mechanical-fade-in .8s ease-out both;
+}
+
+@keyframes mechanical-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.data-readout {
+  font-family: 'Courier New', monospace;
+  font-size: .85rem;
+  color: var(--silver);
+  background: rgba(0,0,0,.4);
+  border: 1px solid var(--line);
+  padding: .5rem .75rem;
+  display: inline-block;
+}
